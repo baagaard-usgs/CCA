@@ -8,7 +8,6 @@ AM_INIT_AUTOMAKE()
 
 # Checks for programs.
 AC_PROG_CC
-AC_PROG_FC
 
 # Checks for libraries.
 

@@ -2,7 +2,6 @@
 
 # General compiler/linker flags
 AM_CFLAGS = ${CFLAGS}
-AM_FCFLAGS = ${FCFLAGS}
 AM_LDFLAGS = ${LDFLAGS}
 
 TARGETS = libcca.a libcca.so
@@ -29,9 +28,6 @@ cca.o: cca.c
 cca_static.o: cca.c
 	$(CC) -o $@ -c $^ $(AM_CFLAGS)
 	
-utm_geo.o: utm_geo.f90
-	$(FC) -fPIC -o $@ -c $^ $(AM_FCFLAGS)
-
 clean:
 	rm -rf $(TARGETS)
 	rm -rf cca.o utm_geo.o
