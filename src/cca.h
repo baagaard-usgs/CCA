@@ -194,11 +194,11 @@ cca_vs30_map_config_t *cca_vs30_map;
 /** Holds pointers to the velocity model data OR indicates it can be read from file. */
 cca_model_t *cca_velocity_model;
 
-/** Proj.4 latitude longitude, WGS84 projection holder. */
-projPJ cca_latlon;
-/** Proj.4 UTM projection holder. */
+/** Proj longitude/latitude coordinate system. */
+projPJ cca_lonlat;
+/** Proj UTM projection coordinate system. */
 projPJ cca_utm;
-/** Proj.4 Vs30 map projection holder. */
+/** Proj Vs30 map projection coordinate system. */
 projPJ cca_aeqd;
 
 /** The cosine of the rotation angle used to rotate the box and point around the bottom-left corner. */

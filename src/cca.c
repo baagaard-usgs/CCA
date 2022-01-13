@@ -61,12 +61,12 @@ int cca_init(const char *dir, const char *label) {
                 return FAIL;
         }
 
-	// We need to convert the point from lat, lon to UTM, let's set it up.
-	if (!(cca_latlon = pj_init_plus("+proj=latlong +datum=WGS84"))) {
-		cca_print_error("Could not set up latitude and longitude projection.");
+	// We need to convert the point from lon, lat to UTM, let's set it up.
+	if (!(cca_lonlat = pj_init_plus("+proj=lonlat +datum=WGS84"))) {
+		cca_print_error("Could not set up longitude and latitude geographic coordinates.");
 		return FAIL;
 	}
-	if (!(cca_utm = pj_init_plus("+proj=utm +zone=11 +ellps=clrk66 +datum=NAD27 +units=m +no_defs"))) {
+	if (!(cca_utm = pj_init_plus("+proj=utm +zone=10 +datum=NAD27 +units=m +no_defs"))) {
 		cca_print_error("Could not set up UTM projection.");
 		return FAIL;
 	}
@@ -114,15 +114,12 @@ int cca_init(const char *dir, const char *label) {
  * @return SUCCESS or FAIL.
  */
 int cca_query(cca_point_t *points, cca_properties_t *data, int numpoints) {
-	int i = 0;
-	double point_utm_e = 0, point_utm_n = 0;
-	double temp_utm_e = 0, temp_utm_n = 0;
+	int i = 0, err=0;
+	double point_u=0, point_v=0;
+	double point_x = 0, point_y = 0;
 	int load_x_coord = 0, load_y_coord = 0, load_z_coord = 0;
 	double x_percent = 0, y_percent = 0, z_percent = 0;
 	cca_properties_t surrounding_points[8];
-
-	int zone = 10;
-	int longlat2utm = 0;
 
 	for (i = 0; i < numpoints; i++) {
 
@@ -136,26 +133,25 @@ int cca_query(cca_point_t *points, cca_properties_t *data, int numpoints) {
 			continue;
 		}
 
-		temp_utm_e = points[i].longitude; // * DEG_TO_RAD;
-		temp_utm_n = points[i].latitude; // * DEG_TO_RAD;
-
-		// Still need to use utm_geo
-		utm_geo_(&temp_utm_e, &temp_utm_n, &point_utm_e, &point_utm_n, &zone, &longlat2utm);
+		point_u = points[i].longitude * DEG_TO_RAD;
+		point_v = points[i].latitude * DEG_TO_RAD;
+		err = pj_transform(cca_lonlat, cca_utm, 1, 1, &point_u, &point_v, NULL);
+		if (err) {
+			fprintf(stderr, "Error during coordinate transformation using Proj. %s\n", pj_strerrno(err));
+			return(CCA_CODE_ERROR);
+		}
 
 		// Point within rectangle.
-		point_utm_n -= cca_configuration->bottom_left_corner_n;
-		point_utm_e -= cca_configuration->bottom_left_corner_e;
-
-		temp_utm_n = point_utm_n;
-		temp_utm_e = point_utm_e;
+		point_u -= cca_configuration->bottom_left_corner_e;
+		point_v -= cca_configuration->bottom_left_corner_n;
 
 		// We need to rotate that point, the number of degrees we calculated above.
-		point_utm_e = cca_cos_rotation_angle * temp_utm_e - cca_sin_rotation_angle * temp_utm_n;
-		point_utm_n = cca_sin_rotation_angle * temp_utm_e + cca_cos_rotation_angle * temp_utm_n;
+		point_x = cca_cos_rotation_angle * point_u - cca_sin_rotation_angle * point_v;
+		point_y = cca_sin_rotation_angle * point_u + cca_cos_rotation_angle * point_v;
 
 		// Which point base point does that correspond to?
-		load_x_coord = floor(point_utm_e / cca_total_width_m * (cca_configuration->nx - 1));
-		load_y_coord = floor(point_utm_n / cca_total_height_m * (cca_configuration->ny - 1));
+		load_x_coord = floor(point_x / cca_total_width_m * (cca_configuration->nx - 1));
+		load_y_coord = floor(point_y / cca_total_height_m * (cca_configuration->ny - 1));
 
 		// And on the Z-axis?
 		load_z_coord = (cca_configuration->depth / cca_configuration->depth_interval - 1) -
@@ -178,8 +174,8 @@ int cca_query(cca_point_t *points, cca_properties_t *data, int numpoints) {
                      cca_total_height_m / (cca_configuration->ny-1):cca_total_height_m;
 
 
-		x_percent = fmod(point_utm_e, x_interval) / (x_interval);
-		y_percent = fmod(point_utm_n, y_interval) / (y_interval);
+		x_percent = fmod(point_x, x_interval) / (x_interval);
+		y_percent = fmod(point_y, y_interval) / (y_interval);
 		z_percent = fmod(points[i].depth, cca_configuration->depth_interval) / cca_configuration->depth_interval;
 
 		if (load_z_coord < 1) {
@@ -346,7 +342,7 @@ void cca_linear_interpolation(double percent, cca_properties_t *x0, cca_properti
  * @return SUCCESS
  */
 int cca_finalize() {
-	pj_free(cca_latlon);
+	pj_free(cca_lonlat);
 	pj_free(cca_utm);
 
 	if (cca_velocity_model) free(cca_velocity_model);
@@ -681,8 +677,8 @@ double cca_get_vs30_value(double longitude, double latitude, cca_vs30_map_config
 	etree_tick_t edgetics = (etree_tick_t)1 << (ETREE_MAXLEVEL - max_level);
 	double map_edgesize = map->x_dimension / (double)((etree_tick_t)1<<max_level);
 
-	pj_transform(cca_latlon, cca_aeqd, 1, 1, &longitude_utm_e, &latitude_utm_n, NULL);
-	pj_transform(cca_latlon, cca_aeqd, 1, 1, &vs30_long_utm_e, &vs30_lat_utm_n, NULL);
+	pj_transform(cca_lonlat, cca_aeqd, 1, 1, &longitude_utm_e, &latitude_utm_n, NULL);
+	pj_transform(cca_lonlat, cca_aeqd, 1, 1, &vs30_long_utm_e, &vs30_lat_utm_n, NULL);
 
 	// Now that both are in UTM, we can subtract and rotate.
 	temp_rotated_point_e = longitude_utm_e - vs30_long_utm_e;
