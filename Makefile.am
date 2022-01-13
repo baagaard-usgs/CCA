@@ -1,3 +1,18 @@
 # GNU Automake config
-SUBDIRS = data src tests
-INCLUDES = $(default_includes)
+SUBDIRS = \
+    dependencies \
+    src \
+    data
+
+ACLOCAL_AMFLAGS = -I m4
+
+
+EXTRA_DIST = \
+    AUTHORS \
+    COPYING \
+    ChangeLog \
+    LICENSE \
+    README.md
+
+
+# End of file

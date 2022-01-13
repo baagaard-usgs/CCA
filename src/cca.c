@@ -1,8 +1,6 @@
 /**
  * @file cca.c
  * @brief Main file for CCA library.
- * @author David Gill - SCEC <davidgil@usc.edu>
- * @version 1.0
  *
  * @section DESCRIPTION
  *
@@ -779,7 +777,7 @@ int cca_get_vs30_based_gtl(cca_point_t *point, cca_properties_t *data) {
 
 // The following functions are for dynamic library mode. If we are compiling
 // a static library, these functions must be disabled to avoid conflicts.
-#ifdef DYNAMIC_LIBRARY
+#if defined(BUILD_SHARED_LIBRARY)
 
 /**
  * Init function loaded and called by the UCVM library. Calls cca_init.

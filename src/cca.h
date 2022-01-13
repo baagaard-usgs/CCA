@@ -1,8 +1,6 @@
 /**
  * @file cca.h
  * @brief Main header file for CCA library.
- * @author David Gill - SCEC <davidgil@usc.edu>
- * @version 1.0
  *
  * Delivers the CCA model which consists of En-Jui Lee's full 3D
  * tomographic results for central California.
@@ -16,7 +14,7 @@
 #include <unistd.h>
 #include <math.h>
 
-#include "etree.h"
+#include "euclid/etree.h"
 #include "proj_api.h"
 
 // Constants
@@ -218,7 +216,7 @@ double cca_sin_vs30_rotation_angle = 0;
 
 // UCVM API Required Functions
 
-#ifdef DYNAMIC_LIBRARY
+#if defined(BUILD_SHARED_LIBRARY)
 
 /** Initializes the model */
 int model_init(const char *dir, const char *label);

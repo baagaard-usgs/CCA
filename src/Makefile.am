@@ -1,38 +1,16 @@
-# Autoconf/automake file
+# GNU Automake file
 
-# General compiler/linker flags
-AM_CFLAGS = ${CFLAGS}
-AM_FCFLAGS = ${FCFLAGS}
-AM_LDFLAGS = ${LDFLAGS}
+lib_LTLIBRARIES = libcca.la
 
-TARGETS = libcca.a libcca.so
+libcca_la_SOURCES = cca.c
 
-all: $(TARGETS)
+pkginclude_HEADERS = cca.h
 
-install:
-	mkdir -p ${prefix}
-	mkdir -p ${prefix}/lib
-	mkdir -p ${prefix}/include
-	cp libcca.so ${prefix}/lib
-	cp libcca.a ${prefix}/lib
-	cp cca.h ${prefix}/include
+libcca_la_LDFLAGS = $(AM_LDFLAGS)
 
-libcca.a: cca_static.o utm_geo.o
-	$(AR) rcs $@ $^
+if BUILD_SHARED_LIBRARY
+  AM_CFLAGS = -DBUILD_SHARED_LIBRARY
+endif
 
-libcca.so: cca.o utm_geo.o
-	$(FC) -shared $(AM_FCFLAGS) -o libcca.so $^ $(AM_LDFLAGS)
 
-cca.o: cca.c
-	$(CC) -fPIC -DDYNAMIC_LIBRARY -o $@ -c $^ $(AM_CFLAGS)
-	
-cca_static.o: cca.c
-	$(CC) -o $@ -c $^ $(AM_CFLAGS)
-	
-utm_geo.o: utm_geo.f90
-	$(FC) -fPIC -o $@ -c $^ $(AM_FCFLAGS)
-
-clean:
-	rm -rf $(TARGETS)
-	rm -rf cca.o utm_geo.o
-
+# End of file
