@@ -18,15 +18,15 @@
 #include "proj_api.h"
 
 // Constants
-#ifndef M_PI
+#if !defined(M_PI)
 	/** Defines pi */
 	#define M_PI 3.14159265358979323846
 #endif
 
 /** Defines a return value of success */
-#define SUCCESS 0
-/** Defines a return value of failure */
-#define FAIL 1
+#define CCA_CODE_SUCCESS 0
+/** Defines a return value for an error */
+#define CCA_CODE_ERROR 1
 
 // Structures
 /** Defines a point (latitude, longitude, and depth) in WGS84 format */
