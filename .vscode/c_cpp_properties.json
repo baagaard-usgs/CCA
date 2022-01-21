@@ -1,0 +1,28 @@
+{
+    "configurations": [
+        {
+            "name": "macos-clang",
+            "defines": [
+                "BUILD_SHARED_LIBRARY",
+                "SHARED_LIBRARY_EXT=\"dylib\""
+            ],
+            "macFrameworkPath": [
+                "/Library/Developer/CommandLineTools/SDKs/MacOSX11.sdk/System/Library/Frameworks"
+            ],
+            "cStandard": "c11",
+            "cppStandard": "c++11",
+            "intelliSenseMode": "macos-clang-x64"
+        },
+        {
+            "name": "linux-gcc",
+            "defines": [
+                "BUILD_SHARED_LIBRARY",
+                "SHARED_LIBRARY_EXT=\"so\""
+            ],
+            "cStandard": "c11",
+            "cppStandard": "c++11",
+            "intelliSenseMode": "gcc-x64"
+        }
+    ],
+    "version": 4
+}
