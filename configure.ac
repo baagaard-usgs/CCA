@@ -28,6 +28,46 @@ AC_ARG_WITH([etree-libdir],
   [with_etree_libdir="$withval"],
   [with_etree_libdir=no])
 
+dnl SQLITE
+AC_ARG_ENABLE([sqlite],
+    [AC_HELP_STRING([--enable-sqlite],
+        [install Sqlite @<:@default=no@:>@])],
+	[if test "$enableval" = "yes" ; then install_sqlite=yes; else install_sqlite=no; fi],
+	[install_sqlite=no])
+AM_CONDITIONAL([INSTALL_SQLITE], [test "$install_sqlite" = yes])
+AC_ARG_WITH([sqlite-incdir],
+    [AC_HELP_STRING([--with-sqlite-incdir],
+        [location of sqlite header files @<:@default=no@:>@])],
+	[with_sqlite_incdir=$withval],
+	[with_sqlite_incdir=no])
+AC_SUBST(with_sqlite_incdir)
+AC_ARG_WITH([sqlite-libdir],
+    [AC_HELP_STRING([--with-sqlite-libdir],
+        [location of sqlite library @<:@default=no@:>@])],
+	[with_sqlite_libdir=$withval],
+	[with_sqlite_libdir=no])
+AC_SUBST(with_sqlite_libdir)
+
+dnl TIFF
+AC_ARG_ENABLE([tiff],
+    [AC_HELP_STRING([--enable-tiff],
+        [install Tiff @<:@default=no@:>@])],
+	[if test "$enableval" = "yes" ; then install_tiff=yes; else install_tiff=no; fi],
+	[install_tiff=no])
+AM_CONDITIONAL([INSTALL_TIFF], [test "$install_tiff" = yes])
+AC_ARG_WITH([tiff-incdir],
+    [AC_HELP_STRING([--with-tiff-incdir],
+        [location of tiff header files @<:@default=no@:>@])],
+	[with_tiff_incdir=$withval],
+	[with_tiff_incdir=no])
+AC_SUBST(with_tiff_incdir)
+AC_ARG_WITH([tiff-libdir],
+    [AC_HELP_STRING([--with-tiff-libdir],
+        [location of tiff library @<:@default=no@:>@])],
+	[with_tiff_libdir=$withval],
+	[with_tiff_libdir=no])
+AC_SUBST(with_tiff_libdir)
+
 dnl PROJ
 AC_ARG_ENABLE([proj],
     [AC_HELP_STRING([--enable-proj],
@@ -72,8 +112,10 @@ fi
 dnl
 dnl Setup environment so dependencies are used in build
 dnl
+CFLAGS="$CFLAGS"
 CPPFLAGS="-I$prefix/include $CPPFLAGS"
 LDFLAGS="-L$prefix/lib -L$prefix/lib64 $LDFLAGS"
+AC_SUBST(CFLAGS)
 AC_SUBST(CPPFLAGS)
 AC_SUBST(LDFLAGS)
 
@@ -98,15 +140,49 @@ fi
 AC_SUBST(ETREE_INCLUDES)
 AC_SUBST(ETREE_LDFLAGS)
 
-dnl PROJ (required)
+dnl proj (required)
 if test "$install_proj" = yes ; then
-  PROJ_INCLUDES=""
-  PROJ_LDFLAGS="-lproj"
+  dnl sqlite (required by proj)
+  if test "$install_sqlite" = yes ; then
+    SQLITE3_INCLUDES="-I$prefix/include"
+    SQLITE3_LDFLAGS="-L$prefix/lib"
+  else
+    if test "$with_sqlite_incdir" != no; then
+      SQLITE3_INCLUDES="-I$with_sqlite_incdir"
+    fi
+    if test "$with_sqlite_libdir" != no; then
+      SQLITE3_LDFLAGS="-L$with_sqlite_libdir"
+    fi
+    SCEC_SQLITE3_HEADER
+    SCEC_SQLITE3_LIB
+  fi
+  AC_SUBST(SQLITE3_INCLUDES)
+  AC_SUBST(SQLITE3_LDFLAGS)
+
+  dnl tiff (required by proj)
+  if test "$install_tiff" = yes ; then
+    TIFF_INCLUDES="-I$prefix/include"
+    TIFF_LDFLAGS="-L$prefix/lib"
+  else
+    if test "$with_tiff_incdir" != no; then
+      TIFF_INCLUDES="-I$with_tiff_incdir"
+    fi
+    if test "$with_tiff_libdir" != no; then
+      TIFF_LDFLAGS="-L$with_tiff_libdir"
+    fi
+    SCEC_TIFF_HEADER
+    SCEC_TIFF_LIB
+  fi
+  AC_SUBST(TIFF_INCLUDES)
+  AC_SUBST(TIFF_LDFLAGS)
+
+  PROJ_INCLUDES="-I$prefix/include"
+  PROJ_LDFLAGS="-L$prefix/lib"
 else
   if test "$with_proj_incdir" != no ; then
     PROJ_INCLUDES="-I$with_proj_incdir"
   fi
-  if test "$with_proj_libdir" != no ; then
+  if test"$with_proj_libdir" != no ; then
     PROJ_LDFLAGS="-L$with_proj_libdir -lproj"
   fi
   SCEC_PROJ_HEADER
