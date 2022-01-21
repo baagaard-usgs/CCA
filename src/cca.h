@@ -155,9 +155,12 @@ typedef struct cca_vs30_mpayload_t {
 
 #if defined(BUILD_SHARED_LIBRARY)
 
+/** Creates the model */
+int ucvmapi_model_create(const char *models_dir,
+                         const char *label);
+
 /** Initializes the model */
-int ucvmapi_model_init(const char *dir,
-                       const char *label);
+int ucvmapi_model_initialize();
 
 /** Cleans up the model (frees memory, etc.) */
 int ucvmapi_model_finalize();
@@ -179,9 +182,12 @@ int ucvmapi_model_query(cca_point_t *points,
 
 // CCA Related Functions
 
+/** Creates the model */
+int cca_create(const char *models_dir,
+               const char *label);
+
 /** Initializes the model */
-int cca_init(const char *dir,
-             const char *label);
+int cca_initialize();
 
 /** Cleans up the model (frees memory, etc.) */
 int cca_finalize();

@@ -63,55 +63,59 @@ double cca_cos_vs30_rotation_angle = 0;
 double cca_sin_vs30_rotation_angle = 0;
 
 /**
- * Initializes the CCA plugin model within the UCVM framework. In order to initialize
+ * Creates the CCA plugin model within the UCVM framework. In order to initialize
  * the model, we must provide the UCVM install path and optionally a place in memory
  * where the model already exists.
  *
- * @param dir The directory in which UCVM has been installed.
+ * @param models_dir The directory containing the UCVM models ($datarootdir/$package/model).
  * @param label A unique identifier for the velocity model.
  * @return CCA_CODE_SUCCESS if initialization was successful, otherwise CCA_CODE_ERROR.
  */
 int
-cca_init(const char *dir,
-         const char *label) {
-    int tempVal = 0;
-    char configbuf[512];
-    double north_height_m = 0, east_width_m = 0, rotation_angle = 0;
-
-    // Initialize variables.
-    cca_configuration = calloc(1, sizeof(cca_configuration_t));
-    cca_velocity_model = calloc(1, sizeof(cca_model_t));
-    cca_vs30_map = calloc(1, sizeof(cca_vs30_map_config_t));
-
-    // Configuration file location.
-    sprintf(configbuf, "%s/%s/config", dir, label);
-
-    // Set up model directories.
-    sprintf(cca_vs30_etree_file, "%s/ucvm/ucvm.e", dir);
+cca_create(const char *models_dir,
+           const char *label) {
+    char config_filename[512];
+    int err = CCA_CODE_SUCCESS;
 
     // Read the cca_configuration file.
-    if (cca_read_configuration(configbuf, cca_configuration) != CCA_CODE_SUCCESS) {
+    cca_configuration = calloc(1, sizeof(cca_configuration_t));
+    sprintf(config_filename, "%s/%s/config", models_dir, label);
+    if (cca_read_configuration(config_filename, cca_configuration) != CCA_CODE_SUCCESS) {
         return (CCA_CODE_ERROR);
     }
 
-    // Set up the iteration directory.
-    sprintf(cca_iteration_directory, "%s/%s/%s", dir, label, cca_configuration->model_dir);
-
     // Can we allocate the model, or parts of it, to memory. If so, we do.
-    tempVal = cca_try_reading_model(cca_velocity_model);
-
-    if (tempVal == CCA_CODE_SUCCESS) {
+    sprintf(cca_iteration_directory, "%s/%s/%s", models_dir, label, cca_configuration->model_dir);
+    cca_velocity_model = calloc(1, sizeof(cca_model_t));
+    err = cca_try_reading_model(cca_velocity_model);
+    if (err == CCA_CODE_SUCCESS) {
         fprintf(stderr, "WARNING: Could not load model into memory. Reading the model from the\n");
         fprintf(stderr, "hard disk may result in slow performance.");
-    } else if (tempVal == CCA_CODE_ERROR) {
+    } else if (err == CCA_CODE_ERROR) {
         cca_print_error("No model file was found to read from.");
         return (CCA_CODE_ERROR);
     }
 
+    // Read Vs30 model.
+    sprintf(cca_vs30_etree_file, "%s/ucvm/ucvm.e", models_dir);
+    cca_vs30_map = calloc(1, sizeof(cca_vs30_map_config_t));
     if (cca_read_vs30_map(cca_vs30_etree_file, cca_vs30_map) != CCA_CODE_SUCCESS) {
         cca_print_error("Could not read the Vs30 map data from UCVM.");
         return (CCA_CODE_ERROR);
     }
+
+    return CCA_CODE_SUCCESS;
+}
+
+
+/**
+ * Initializes the CCA plugin model within the UCVM framework.
+ *
+ * @return CCA_CODE_SUCCESS if initialization was successful, otherwise CCA_CODE_ERROR.
+ */
+int
+cca_initialize() {
+    double north_height_m = 0, east_width_m = 0, rotation_angle = 0;
 
     // We need to convert the point from lat, lon to UTM, let's set it up.
     if (!(cca_geo2utm = proj_create_crs_to_crs(PJ_DEFAULT_CTX, "EPSG:4326", "+proj=utm +zone=10 +datum=NAD27 +units=m +no_defs", NULL))) {
@@ -130,6 +134,7 @@ cca_init(const char *dir,
     // the X and Y axis determines which grid points we use for the interpolation routine.
 
     // Calculate the rotation angle of the box.
+    assert(cca_configuration);
     north_height_m = cca_configuration->top_left_corner_n - cca_configuration->bottom_left_corner_n;
     east_width_m = cca_configuration->top_left_corner_e - cca_configuration->bottom_left_corner_e;
 
@@ -155,16 +160,16 @@ cca_init(const char *dir,
 /**
  * Called when the model is being discarded. Free all variables.
  *
- * @return CCA_CODE_SUCCESS
+ * @return CCA_CODE_SUCCESS on success or CCA_CODE_ERROR on failure.
  */
 int
 cca_finalize() {
     proj_destroy(cca_geo2utm);cca_geo2utm = NULL;
     proj_destroy(cca_geo2aeqd);cca_geo2aeqd = NULL;
 
-    if (cca_velocity_model) { free(cca_velocity_model);}
-    if (cca_configuration) { free(cca_configuration);}
-    if (cca_vs30_map) {free(cca_vs30_map);}
+    if (cca_velocity_model) { free(cca_velocity_model);cca_velocity_model = NULL; }
+    if (cca_configuration) { free(cca_configuration);cca_configuration = NULL; }
+    if (cca_vs30_map) { free(cca_vs30_map);cca_vs30_map = NULL; }
 
     return CCA_CODE_SUCCESS;
 }
@@ -175,7 +180,7 @@ cca_finalize() {
  *
  * @param ver Version string to return.
  * @param len Maximum length of buffer.
- * @return Zero
+ * @return CCA_CODE_SUCCESS on success or CCA_CODE_ERROR on failure.
  */
 int
 cca_version(char *ver,
@@ -196,6 +201,7 @@ cca_version(char *ver,
  *
  * @param[in] name Name of parameter.
  * @param[in] value Value of parameter.
+ * @return CCA_CODE_SUCCESS on success or CCA_CODE_ERROR on failure.
  */
 int
 cca_set_param(const char *name,
@@ -210,13 +216,13 @@ cca_set_param(const char *name,
  * @param points The points at which the queries will be made.
  * @param data The data that will be returned (Vp, Vs, density, Qs, and/or Qp).
  * @param numpoints The total number of points to query.
- * @return CCA_CODE_SUCCESS or CCA_CODE_ERROR.
+ * @return CCA_CODE_SUCCESS on success or CCA_CODE_ERROR on failure.
  */
 int
 cca_query(cca_point_t *points,
           cca_properties_t *data,
           int numpoints) {
-    int i = 0, err = 0;
+    int i = 0, err = CCA_CODE_SUCCESS;
     double point_u = 0, point_v = 0;
     double point_x = 0, point_y = 0;
     int load_x_coord = 0, load_y_coord = 0, load_z_coord = 0;
@@ -492,25 +498,25 @@ cca_read_configuration(char *file,
 
     // Read the lines in the cca_configuration file.
     while (fgets(line_holder, sizeof(line_holder), fp) != NULL) {
-        if ((line_holder[0] != '#') && (line_holder[0] != ' ') && (line_holder[0] != '\n') ) {
+        if ((line_holder[0] != '#') && (line_holder[0] != ' ') && (line_holder[0] != '\n')) {
             sscanf(line_holder, "%s = %s", key, value);
 
             // Which variable are we editing?
-            if (strcmp(key, "utm_zone") == 0) { config->utm_zone = atoi(value);}
-            if (strcmp(key, "model_dir") == 0) { sprintf(config->model_dir, "%s", value);}
-            if (strcmp(key, "nx") == 0) { config->nx = atoi(value);}
-            if (strcmp(key, "ny") == 0) { config->ny = atoi(value);}
-            if (strcmp(key, "nz") == 0) { config->nz = atoi(value);}
-            if (strcmp(key, "depth") == 0) { config->depth = atof(value);}
-            if (strcmp(key, "top_left_corner_e") == 0) { config->top_left_corner_e = atof(value);}
-            if (strcmp(key, "top_left_corner_n") == 0) { config->top_left_corner_n = atof(value);}
-            if (strcmp(key, "top_right_corner_e") == 0) { config->top_right_corner_e = atof(value);}
-            if (strcmp(key, "top_right_corner_n") == 0) { config->top_right_corner_n = atof(value);}
-            if (strcmp(key, "bottom_left_corner_e") == 0) { config->bottom_left_corner_e = atof(value);}
-            if (strcmp(key, "bottom_left_corner_n") == 0) { config->bottom_left_corner_n = atof(value);}
-            if (strcmp(key, "bottom_right_corner_e") == 0) { config->bottom_right_corner_e = atof(value);}
-            if (strcmp(key, "bottom_right_corner_n") == 0) { config->bottom_right_corner_n = atof(value);}
-            if (strcmp(key, "depth_interval") == 0) { config->depth_interval = atof(value);}
+            if (strcmp(key, "utm_zone") == 0) {config->utm_zone = atoi(value);}
+            if (strcmp(key, "model_dir") == 0) {sprintf(config->model_dir, "%s", value);}
+            if (strcmp(key, "nx") == 0) {config->nx = atoi(value);}
+            if (strcmp(key, "ny") == 0) {config->ny = atoi(value);}
+            if (strcmp(key, "nz") == 0) {config->nz = atoi(value);}
+            if (strcmp(key, "depth") == 0) {config->depth = atof(value);}
+            if (strcmp(key, "top_left_corner_e") == 0) {config->top_left_corner_e = atof(value);}
+            if (strcmp(key, "top_left_corner_n") == 0) {config->top_left_corner_n = atof(value);}
+            if (strcmp(key, "top_right_corner_e") == 0) {config->top_right_corner_e = atof(value);}
+            if (strcmp(key, "top_right_corner_n") == 0) {config->top_right_corner_n = atof(value);}
+            if (strcmp(key, "bottom_left_corner_e") == 0) {config->bottom_left_corner_e = atof(value);}
+            if (strcmp(key, "bottom_left_corner_n") == 0) {config->bottom_left_corner_n = atof(value);}
+            if (strcmp(key, "bottom_right_corner_e") == 0) {config->bottom_right_corner_e = atof(value);}
+            if (strcmp(key, "bottom_right_corner_n") == 0) {config->bottom_right_corner_n = atof(value);}
+            if (strcmp(key, "depth_interval") == 0) {config->depth_interval = atof(value);}
             if (strcmp(key, "p0") == 0) { config->p0 = atof(value);}
             if (strcmp(key, "p1") == 0) { config->p1 = atof(value);}
             if (strcmp(key, "p2") == 0) { config->p2 = atof(value);}
@@ -541,11 +547,11 @@ cca_read_configuration(char *file,
 
 
 /**
- *  * Calculates the density based off of Vs. Based on Nafe-Drake scaling relationship.
- *   *
- *    * @param vs The Vs value off which to scale.
- *     * @return Density, in g/m^3.
- *      */
+ * Calculates the density based off of Vs. Based on Nafe-Drake scaling relationship.
+ *
+ * @param vs The Vs value off which to scale.
+ * @return Density, in g/m^3.
+ */
 double
 cca_calculate_density(double vs) {
     double retVal;
@@ -698,7 +704,7 @@ cca_read_vs30_map(char *filename,
     map->vs30_map = etree_open(filename, O_RDONLY, 64, 0, 3);
     retVal = snprintf(appmeta, sizeof(appmeta), "%s", etree_getappmeta(map->vs30_map));
 
-    if ((retVal >= 0) && (retVal < 128) ) {
+    if ((retVal >= 0) && (retVal < 128)) {
         return (CCA_CODE_ERROR);
     }
 
@@ -852,7 +858,7 @@ cca_get_vs30_based_gtl(cca_point_t *point,
     double vs30 = 0.0, vp30 = 0.0;
 
     // Double check that we're above the first layer.
-    if (percent_z > 1) { return (CCA_CODE_ERROR);}
+    if (percent_z > 1) {return (CCA_CODE_ERROR);}
 
     // Query for the point at depth_interval.
     cca_point_t *pt = calloc(1, sizeof(cca_point_t));
@@ -862,7 +868,7 @@ cca_get_vs30_based_gtl(cca_point_t *point,
     pt->longitude = point->longitude;
     pt->depth = cca_configuration->depth_interval;
 
-    if (cca_query(pt, dt, 1) != CCA_CODE_SUCCESS) { return (CCA_CODE_ERROR);}
+    if (cca_query(pt, dt, 1) != CCA_CODE_SUCCESS) {return (CCA_CODE_ERROR);}
 
     // Now we need the Vs30 data value.
     vs30 = cca_get_vs30_value(point->longitude, point->latitude, cca_vs30_map);
@@ -894,15 +900,26 @@ cca_get_vs30_based_gtl(cca_point_t *point,
 #if defined(BUILD_SHARED_LIBRARY)
 
 /**
- * Init function loaded and called by the UCVM library. Calls cca_init.
+ * Create function loaded and called by the UCVM library.
  *
  * @param dir The directory in which UCVM is installed.
  * @return CCA_CODE_SUCCESS or CCA_CODE_ERRORure.
  */
 int
-ucvmapi_model_init(const char *dir,
-                   const char *label) {
-    return cca_init(dir, label);
+ucvmapi_model_create(const char *dir,
+                     const char *label) {
+    return cca_create(dir, label);
+}
+
+
+/**
+ * Initialize function loaded and called by the UCVM library.
+ *
+ * @return CCA_CODE_SUCCESS or CCA_CODE_ERRORure.
+ */
+int
+ucvmapi_model_initialize() {
+    return cca_initialize();
 }
 
 
@@ -918,7 +935,7 @@ ucvmapi_model_finalize() {
 
 
 /**
- * Version function loaded and called by the UCVM library. Calls cca_version.
+ * Version function loaded and called by the UCVM library.
  *
  * @param ver Version string to return.
  * @param len Maximum length of buffer.
