@@ -114,17 +114,21 @@ cca_create(const char *models_dir,
  * @return CCA_CODE_SUCCESS if initialization was successful, otherwise CCA_CODE_ERROR.
  */
 int
-cca_initialize() {
+cca_initialize(void) {
+    char cca_projstr[64];
     double north_height_m = 0, east_width_m = 0, rotation_angle = 0;
 
     // We need to convert the point from lat, lon to UTM, let's set it up.
-    if (!(cca_geo2utm = proj_create_crs_to_crs(PJ_DEFAULT_CTX, "EPSG:4326", "+proj=utm +zone=10 +datum=NAD27 +units=m +no_defs", NULL))) {
-        cca_print_error("Could not set up Proj transformation from EPSG:4325 to UTM zone 10.");
+    snprintf(cca_projstr, 64, "+proj=utm +zone=%d +datum=NAD27 +units=m +no_defs", cca_configuration->utm_zone);
+    if (!(cca_geo2utm = proj_create_crs_to_crs(PJ_DEFAULT_CTX, "EPSG:4326", cca_projstr, NULL))) {
+        cca_print_error("Could not set up Proj transformation from EPSG:4325 to UTM.");
+        cca_print_error(proj_context_errno_string(PJ_DEFAULT_CTX, proj_context_errno(PJ_DEFAULT_CTX)));
         return (CCA_CODE_ERROR);
     }
     assert(cca_vs30_map);
     if (!(cca_geo2aeqd = proj_create_crs_to_crs(PJ_DEFAULT_CTX, "EPSG:4326", cca_vs30_map->projection, NULL))) {
         cca_print_error("Could not set up Proj transformation from EPSG:4326 to AEQD projection.");
+        cca_print_error(proj_context_errno_string(PJ_DEFAULT_CTX, proj_context_errno(PJ_DEFAULT_CTX)));
         return (CCA_CODE_ERROR);
     }
 
@@ -163,7 +167,7 @@ cca_initialize() {
  * @return CCA_CODE_SUCCESS on success or CCA_CODE_ERROR on failure.
  */
 int
-cca_finalize() {
+cca_finalize(void) {
     proj_destroy(cca_geo2utm);cca_geo2utm = NULL;
     proj_destroy(cca_geo2aeqd);cca_geo2aeqd = NULL;
 
@@ -204,9 +208,16 @@ cca_version(char *ver,
  * @return CCA_CODE_SUCCESS on success or CCA_CODE_ERROR on failure.
  */
 int
-cca_set_param(const char *name,
-              const char *value) {
-    return (CCA_CODE_SUCCESS);
+cca_set_parameter(const char *name,
+                  const char *value) {
+    if (strcasecmp(name, "use_gtl") == 0) {
+        cca_configuration->use_gtl = strcasecmp(value, "true") == 0 ? 1 : 0;
+    } else {
+        fprintf(stderr, "Unknown parameter %s=%s for CCA model.\n", name, value);
+        return CCA_CODE_ERROR;
+    }
+
+    return CCA_CODE_SUCCESS;
 }
 
 
@@ -221,7 +232,8 @@ cca_set_param(const char *name,
 int
 cca_query(cca_point_t *points,
           cca_properties_t *data,
-          int numpoints) {
+          int numpoints,
+          cca_query_flags_t *qflags) {
     int i = 0, err = CCA_CODE_SUCCESS;
     double point_u = 0, point_v = 0;
     double point_x = 0, point_y = 0;
@@ -299,7 +311,7 @@ cca_query(cca_point_t *points,
 
             continue;
         } else {
-            if ((points[i].depth < cca_configuration->depth_interval) && (cca_configuration->gtl == 1)) {
+            if ((points[i].depth < cca_configuration->depth_interval) && cca_configuration->use_gtl) {
                 cca_get_vs30_based_gtl(&(points[i]), &(data[i]));
                 data[i].rho = cca_calculate_density(data[i].vs);
 
@@ -501,7 +513,6 @@ cca_read_configuration(char *file,
         if ((line_holder[0] != '#') && (line_holder[0] != ' ') && (line_holder[0] != '\n')) {
             sscanf(line_holder, "%s = %s", key, value);
 
-            // Which variable are we editing?
             if (strcmp(key, "utm_zone") == 0) {config->utm_zone = atoi(value);}
             if (strcmp(key, "model_dir") == 0) {sprintf(config->model_dir, "%s", value);}
             if (strcmp(key, "nx") == 0) {config->nx = atoi(value);}
@@ -523,8 +534,8 @@ cca_read_configuration(char *file,
             if (strcmp(key, "p3") == 0) { config->p3 = atof(value);}
             if (strcmp(key, "p4") == 0) { config->p4 = atof(value);}
             if (strcmp(key, "p5") == 0) { config->p5 = atof(value);}
-            if (strcmp(key, "gtl") == 0) {
-                if (strcmp(value, "on") == 0) { config->gtl = 1;} else { config->gtl = 0;}
+            if (strcmp(key, "use_gtl") == 0) {
+                config->use_gtl = strcasecmp(value, "true") == 0 ? 1 : 0;
             }
             // anything else, just ignore
         }
@@ -569,7 +580,7 @@ cca_calculate_density(double vs) {
  * @param err The error string to print out to stderr.
  */
 void
-cca_print_error(char *err) {
+cca_print_error(const char *err) {
     fprintf(stderr, "An error has occurred while executing CCA. The error was:\n\n");
     fprintf(stderr, "%s", err);
     fprintf(stderr, "\n\nPlease contact software@scec.org and describe both the error and a bit\n");
@@ -757,7 +768,7 @@ cca_read_vs30_map(char *filename,
         token = strtok(NULL, "|");
     }
 
-    return (CCA_CODE_SUCCESS);
+    return CCA_CODE_SUCCESS;
 
 }
 
@@ -868,7 +879,7 @@ cca_get_vs30_based_gtl(cca_point_t *point,
     pt->longitude = point->longitude;
     pt->depth = cca_configuration->depth_interval;
 
-    if (cca_query(pt, dt, 1) != CCA_CODE_SUCCESS) {return (CCA_CODE_ERROR);}
+    if (cca_query(pt, dt, 1, NULL) != CCA_CODE_SUCCESS) {return (CCA_CODE_ERROR);}
 
     // Now we need the Vs30 data value.
     vs30 = cca_get_vs30_value(point->longitude, point->latitude, cca_vs30_map);
@@ -891,7 +902,7 @@ cca_get_vs30_based_gtl(cca_point_t *point,
     free(pt);
     free(dt);
 
-    return (CCA_CODE_SUCCESS);
+    return CCA_CODE_SUCCESS;
 }
 
 
@@ -918,7 +929,7 @@ ucvmapi_model_create(const char *dir,
  * @return CCA_CODE_SUCCESS or CCA_CODE_ERRORure.
  */
 int
-ucvmapi_model_initialize() {
+ucvmapi_model_initialize(void) {
     return cca_initialize();
 }
 
@@ -929,7 +940,7 @@ ucvmapi_model_initialize() {
  * @return CCA_CODE_SUCCESS
  */
 int
-ucvmapi_model_finalize() {
+ucvmapi_model_finalize(void) {
     return cca_finalize();
 }
 
@@ -956,9 +967,9 @@ ucvmapi_model_version(char *ver,
  * @return Zero
  */
 int
-ucvmapi_model_set_param(const char *name,
-                        const char *value) {
-    return cca_set_param(name, value);
+ucvmapi_model_set_parameter(const char *name,
+                            const char *value) {
+    return cca_set_parameter(name, value);
 }
 
 
@@ -973,8 +984,9 @@ ucvmapi_model_set_param(const char *name,
 int
 ucvmapi_model_query(cca_point_t *points,
                     cca_properties_t *data,
-                    int numpoints) {
-    return cca_query(points, data, numpoints);
+                    int numpoints,
+                    cca_query_flags_t *qflags) {
+    return cca_query(points, data, numpoints, qflags);
 }
 
 

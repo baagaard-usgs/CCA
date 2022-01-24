@@ -19,11 +19,12 @@ typedef enum { CCA_COORD_GEO_DEPTH=0,
 
 // Structures
 
-/** Defines a point (latitude, longitude, and depth) in WGS84 format */
+/** Defines coordinates of a point. */
 typedef struct cca_point_t {
     double longitude; /* longitude, degrees */
     double latitude; /* latitude, degrees */
     double depth; /* depth, meters */
+    double ucvm_surf_elev; /* Elevation of UCVM top surface, meters */
 } cca_point_t;
 
 /** Defines the material properties this model will retrieve. */
@@ -35,14 +36,19 @@ typedef struct cca_properties_t {
     double qs;
 } cca_properties_t;
 
-/** The CVM-S5 configuration structure. */
+/* Flags used to set query behavior. */
+typedef struct {
+    int force_depth_above_surf; /* Force points above top surface to lie on surface. */
+} cca_query_flags_t;
+
+/** The CCA configuration structure. */
 typedef struct cca_configuration_t {
     /** The zone of UTM projection */
     int utm_zone;
     /** The model directory */
     char model_dir[128];
     /** GTL on or off (1 or 0) */
-    int gtl;
+    int use_gtl;
     /** Number of x points */
     int nx;
     /** Number of y points */
@@ -160,23 +166,24 @@ int ucvmapi_model_create(const char *models_dir,
                          const char *label);
 
 /** Initializes the model */
-int ucvmapi_model_initialize();
+int ucvmapi_model_initialize(void);
 
 /** Cleans up the model (frees memory, etc.) */
-int ucvmapi_model_finalize();
+int ucvmapi_model_finalize(void);
 
 /** Returns version information */
 int ucvmapi_model_version(char *ver,
                           int len);
 
 /* Set model user parameter */
-int ucvmapi_model_set_param(const char* name,
-                            const char* value);
+int ucvmapi_model_set_parameter(const char* name,
+                                const char* value);
 
 /** Queries the model */
 int ucvmapi_model_query(cca_point_t *points,
                         cca_properties_t *data,
-                        int numpts);
+                        int numpts,
+                        cca_query_flags_t *qflags);
 
 #endif
 
@@ -187,10 +194,10 @@ int cca_create(const char *models_dir,
                const char *label);
 
 /** Initializes the model */
-int cca_initialize();
+int cca_initialize(void);
 
 /** Cleans up the model (frees memory, etc.) */
-int cca_finalize();
+int cca_finalize(void);
 
 /** Returns version information */
 int cca_version(char *ver,
@@ -203,7 +210,8 @@ int cca_set_param(const char* name,
 /** Queries the model */
 int cca_query(cca_point_t *points,
               cca_properties_t *data,
-              int numpts);
+              int numpts,
+              cca_query_flags_t *qflags);
 
 // Non-UCVM Helper Functions
 /** Reads the configuration file. */
@@ -211,7 +219,7 @@ int cca_read_configuration(char *file,
                            cca_configuration_t *config);
 
 /** Prints out the error string. */
-void cca_print_error(char *err);
+void cca_print_error(const char *err);
 
 /** Retrieves the value at a specified grid point in the model. */
 void cca_read_properties(int x,

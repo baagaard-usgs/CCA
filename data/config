@@ -1,12 +1,6 @@
-# UTM Zone
-utm_zone = 10
-
 # Model directory
 model_dir = i06
 model_data_path  = https://g-c662a6.a78b8.36fe.data.globus.org/ucvm/models
-
-# GTL on or off?
-gtl = off 
 
 # Number of cells in x, y, and z.
 nx = 1024
@@ -25,6 +19,8 @@ p2 = -0.51231936640441489
 p1 = 1.2550758337054457
 p0 = 1.2948318548300342
 
+# UTM Zone
+utm_zone = 10
 
 # Corners, in UTM projection.
 top_left_corner_e	= 503240.523120
