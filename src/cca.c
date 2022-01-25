@@ -863,6 +863,9 @@ cca_get_vs30_value(double longitude,
 int
 cca_get_vs30_based_gtl(cca_point_t *point,
                        cca_properties_t *data) {
+    cca_point_t vm_point;
+    cca_properties_t vm_data;
+
     double a = 0.5, b = 0.6, c = 0.5;
     double percent_z = point->depth / cca_configuration->depth_interval;
     double f = 0.0, g = 0.0;
@@ -871,15 +874,11 @@ cca_get_vs30_based_gtl(cca_point_t *point,
     // Double check that we're above the first layer.
     if (percent_z > 1) {return (CCA_CODE_ERROR);}
 
-    // Query for the point at depth_interval.
-    cca_point_t *pt = calloc(1, sizeof(cca_point_t));
-    cca_properties_t *dt = calloc(1, sizeof(cca_properties_t));
-
-    pt->latitude = point->latitude;
-    pt->longitude = point->longitude;
-    pt->depth = cca_configuration->depth_interval;
-
-    if (cca_query(pt, dt, 1, NULL) != CCA_CODE_SUCCESS) {return (CCA_CODE_ERROR);}
+    vm_point.latitude = point->latitude;
+    vm_point.longitude = point->longitude;
+    vm_point.depth = cca_configuration->depth_interval;
+    memset(&vm_data, 0, sizeof(vm_data));
+    if (cca_query(&vm_point, &vm_data, 1, NULL) != CCA_CODE_SUCCESS) {return (CCA_CODE_ERROR);}
 
     // Now we need the Vs30 data value.
     vs30 = cca_get_vs30_value(point->longitude, point->latitude, cca_vs30_map);
@@ -891,16 +890,13 @@ cca_get_vs30_based_gtl(cca_point_t *point,
         // Get the point's material properties within the GTL.
         f = percent_z + b * (percent_z - pow(percent_z, 2.0f));
         g = a - a * percent_z + c * (pow(percent_z, 2.0f) + 2.0 * sqrt(percent_z) - 3.0 * percent_z);
-        data->vs = f * dt->vs + g * vs30;
-        // fprintf(stderr,"XXX f %f and g %f\n", f, g);
+        data->vs = f * vm_data.vs + g * vs30;
+
         vs30 = vs30 / 1000;
         vp30 = 0.9409 + 2.0947 * vs30 - 0.8206 * pow(vs30, 2.0f) + 0.2683 * pow(vs30, 3.0f) - 0.0251 * pow(vs30, 4.0f);
         vp30 = vp30 * 1000;
-        data->vp = f * dt->vp + g * vp30;
+        data->vp = f * vm_data.vp + g * vp30;
     }
-
-    free(pt);
-    free(dt);
 
     return CCA_CODE_SUCCESS;
 }
